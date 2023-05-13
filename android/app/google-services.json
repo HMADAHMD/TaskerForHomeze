@@ -1,0 +1,82 @@
+{
+  "project_info": {
+    "project_number": "289669831167",
+    "project_id": "homeze-f0e43",
+    "storage_bucket": "homeze-f0e43.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:289669831167:android:db1e8ae875e81d9201afca",
+        "android_client_info": {
+          "package_name": "com.example.homeze_screens"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "289669831167-0osrifudvcgn2p24e1dikgn494jd9e3n.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBOwNtjUmHZOHLGwF5ZUQrnOe7t0pmXaMw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "289669831167-0osrifudvcgn2p24e1dikgn494jd9e3n.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "289669831167-lmi368idff063l2bk4va22svlkkklsvi.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.homezetasker"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:289669831167:android:81f18646e64c3dac01afca",
+        "android_client_info": {
+          "package_name": "com.example.homezetasker"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "289669831167-0osrifudvcgn2p24e1dikgn494jd9e3n.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBOwNtjUmHZOHLGwF5ZUQrnOe7t0pmXaMw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "289669831167-0osrifudvcgn2p24e1dikgn494jd9e3n.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "289669831167-lmi368idff063l2bk4va22svlkkklsvi.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.homezetasker"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
