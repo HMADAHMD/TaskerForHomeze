@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:homezetasker/resources/firestore_methods.dart';
+import 'package:homezetasker/screens/chatroom.dart';
 import 'package:homezetasker/screens/make_offer.dart';
 import 'package:homezetasker/utils/constants.dart';
 import 'package:provider/provider.dart';
@@ -7,7 +9,8 @@ import 'package:homezetasker/models/tasker.dart' as model;
 
 class JobsCard extends StatefulWidget {
   final snap;
-  const JobsCard({super.key, required this.snap});
+  final Function(String) sendMessage;
+  const JobsCard({super.key, required this.snap, required this.sendMessage});
 
   @override
   State<JobsCard> createState() => _JobsCardState();
@@ -161,17 +164,23 @@ class _JobsCardState extends State<JobsCard> {
                   ),
                   Expanded(
                     flex: 2,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(500),
-                        color: darkgray,
-                      ),
-                      height: 50,
-                      child: const Center(
-                        child: Text(
-                          'Message',
-                          style: TextStyle(
-                              color: blueclr, fontWeight: FontWeight.bold),
+                    child: GestureDetector(
+                      onTap: () {
+                        widget.sendMessage(widget.snap['fullname']);
+                        
+                      },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(500),
+                          color: darkgray,
+                        ),
+                        height: 50,
+                        child: const Center(
+                          child: Text(
+                            'Message',
+                            style: TextStyle(
+                                color: blueclr, fontWeight: FontWeight.bold),
+                          ),
                         ),
                       ),
                     ),

@@ -1,15 +1,12 @@
 import 'dart:async';
-import 'dart:io';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:homezetasker/main.dart';
 import 'package:homezetasker/provider/tasker_provider.dart';
+import 'package:homezetasker/resources/firestore_methods.dart';
 import 'package:homezetasker/resources/http_response.dart';
+import 'package:homezetasker/screens/chatroom.dart';
+import 'package:homezetasker/screens/chatrooms_list.dart';
 import 'package:homezetasker/screens/profile_screen.dart';
 import 'package:homezetasker/utils/constants.dart';
 import 'package:homezetasker/utils/my_utils.dart';
@@ -65,6 +62,8 @@ class _HomeScreenState extends State<HomeScreen> {
         await HttpResponse.responseGot(taskerPosition!, context);
     print('Address: ' + readableAddress);
   }
+
+
 
   // driverIsOnline() async {}
 
@@ -134,7 +133,11 @@ class _HomeScreenState extends State<HomeScreen> {
           }),
           actions: [
             IconButton(
-                onPressed: () {},
+                onPressed: () {
+                  Navigator.push(context,
+                      MaterialPageRoute(builder: (context) => ChatroomsList()));
+                  
+                },
                 icon: const Icon(
                   Icons.chat_rounded,
                   color: blueclr,
