@@ -1,9 +1,12 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:homezetasker/provider/tasker_provider.dart';
 import 'package:homezetasker/screens/login_screen.dart';
 import 'package:homezetasker/utils/constants.dart';
 import 'package:homezetasker/utils/my_utils.dart';
 import 'package:homezetasker/widgets/small_widgets.dart';
+import 'package:homezetasker/models/tasker.dart' as model;
+import 'package:provider/provider.dart';
 
 class ProfileScreen extends StatefulWidget {
   @override
@@ -23,6 +26,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    model.Tasker tasker = Provider.of<TaskerProvider>(context).getTasker;
     return Scaffold(
         body: SafeArea(
       child: Column(
@@ -39,7 +43,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Container(
                       child: CircleAvatar(
                         radius: 40,
-                        backgroundImage: NetworkImage(NewUser),
+                        backgroundImage: NetworkImage(tasker.photoURL),
                       ),
                     ),
                     const SizedBox(
@@ -48,10 +52,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
+                      children: [
                         Text(
-                          "Josh Redim",
-                          style: TextStyle(
+                          tasker.fullname,
+                          style: const TextStyle(
                               fontSize: 30,
                               color: orangeclr,
                               fontWeight: FontWeight.bold),
@@ -60,13 +64,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           height: 10,
                         ),
                         Text(
-                          'josh.redd@gmail.com',
+                          tasker.email,
                           style: TextStyle(fontSize: 15, color: blueclr),
                         ),
                         const SizedBox(
                           height: 5,
                         ),
-                        Text('923000000000',
+                        Text(tasker.number,
                             style: TextStyle(fontSize: 15, color: blueclr)),
                       ],
                     )

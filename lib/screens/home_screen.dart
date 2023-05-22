@@ -1,5 +1,9 @@
 import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_geofire/flutter_geofire.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:homezetasker/provider/tasker_provider.dart';
@@ -13,6 +17,7 @@ import 'package:homezetasker/utils/my_utils.dart';
 import 'package:homezetasker/widgets/small_widgets.dart';
 import 'package:provider/provider.dart';
 import 'package:homezetasker/models/tasker.dart' as model;
+import 'dart:io';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -28,6 +33,7 @@ class _HomeScreenState extends State<HomeScreen> {
       Completer<GoogleMapController>();
 
   GoogleMapController? newMapController;
+  StreamSubscription<Position>? _streamSubscription;
 
   static const CameraPosition _kGooglePlex = CameraPosition(
     target: LatLng(32.33802241013048, 74.36075742817873),
@@ -62,8 +68,6 @@ class _HomeScreenState extends State<HomeScreen> {
         await HttpResponse.responseGot(taskerPosition!, context);
     print('Address: ' + readableAddress);
   }
-
-
 
   // driverIsOnline() async {}
 
@@ -136,7 +140,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 onPressed: () {
                   Navigator.push(context,
                       MaterialPageRoute(builder: (context) => ChatroomsList()));
-                  
                 },
                 icon: const Icon(
                   Icons.chat_rounded,
@@ -241,7 +244,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       backgroundColor: orangeclr,
                                       foregroundColor: blueclr),
                                   onPressed: () {
-                                    myUtils.driverIsOffline();
+                                    taskerIsOffline();
                                     setState(() {
                                       _isDriverActive = false;
                                     });
@@ -273,8 +276,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   foregroundColor: blueclr),
                               onPressed: () {
                                 taskerIsOnline();
-                                // driverIsOnline();
-                                // realtimeLocation();
+                                updateTaskerLocation();
                                 setState(() {
                                   _isDriverActive = true;
                                 });
@@ -293,24 +295,99 @@ class _HomeScreenState extends State<HomeScreen> {
 
 //..........................................makes driver online and store driver geolocation in firestore
   taskerIsOnline() async {
-    // Position pos = await Geolocator.getCurrentPosition(
-    //     desiredAccuracy: LocationAccuracy.high);
-    // taskerPosition = pos;
-    // final _auth = FirebaseAuth.instance;
-    // User user = _auth.currentUser!;
-    // String uid = user.uid;
-    // Geofire.initialize('activeTaskers');
-    // Geofire.setLocation(
-    //     uid, taskerPosition!.latitude, taskerPosition!.longitude);
+    final _auth = FirebaseAuth.instance;
+    User tasker = _auth.currentUser!;
 
-    // DatabaseReference ref = FirebaseDatabase.instance
-    //     .ref()
-    //     .child('tasker')
-    //     .child(uid)
-    //     .child('newTaskerStatus');
-    // ref.set('idle');
-    // ref.onValue.listen((event) {});
+    Position pos = await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.high,
+    );
+    taskerPosition = pos;
+
+    Geofire.initialize('activeTaskers');
+    Geofire.setLocation(
+      tasker.uid,
+      taskerPosition!.latitude,
+      taskerPosition!.longitude,
+    );
+
+    DatabaseReference ref = FirebaseDatabase.instance
+        .ref()
+        .child("tasker")
+        .child(tasker.uid)
+        .child("taskerStatus");
+    ref.set("idle");
+    ref.onValue.listen((event) {});
   }
+
+  updateTaskerLocation() {
+    final auth = FirebaseAuth.instance;
+    User tasker = auth.currentUser!;
+    _streamSubscription =
+        Geolocator.getPositionStream().listen((Position position) {
+      Geofire.setLocation(
+        tasker.uid,
+        taskerPosition!.latitude,
+        taskerPosition!.longitude,
+      );
+
+      LatLng latlng =
+          LatLng(taskerPosition!.latitude, taskerPosition!.longitude);
+      newMapController!.animateCamera(CameraUpdate.newLatLng(latlng));
+    });
+  }
+
+  taskerIsOffline() {
+    final auth = FirebaseAuth.instance;
+    User tasker = auth.currentUser!;
+    Geofire.removeLocation(tasker.uid);
+    DatabaseReference? ref = FirebaseDatabase.instance
+        .ref()
+        .child("tasker")
+        .child(tasker.uid)
+        .child("taskerStatus");
+    ref.onDisconnect;
+    ref.remove();
+    ref = null;
+    if (Platform.isAndroid) {
+      SystemNavigator.pop();
+    } else {
+      restartApp();
+    }
+  }
+
+  void restartApp() async {
+    const platform = const MethodChannel('com.example.myapp/restart');
+    try {
+      await platform.invokeMethod('restart');
+    } on PlatformException catch (e) {
+      print('Failed to restart app: ${e.message}');
+    }
+  }
+}
+
+
+
+
+
+  //taskerIsOnline() async {
+  // Position pos = await Geolocator.getCurrentPosition(
+  //     desiredAccuracy: LocationAccuracy.high);
+  // taskerPosition = pos;
+  // final _auth = FirebaseAuth.instance;
+  // User user = _auth.currentUser!;
+  // String uid = user.uid;
+  // Geofire.initialize('activeTaskers');
+  // Geofire.setLocation(
+  //     uid, taskerPosition!.latitude, taskerPosition!.longitude);
+
+  // DatabaseReference ref = FirebaseDatabase.instance
+  //     .ref()
+  //     .child('tasker')
+  //     .child(uid)
+  //     .child('newTaskerStatus');
+  // ref.set('idle');
+  // ref.onValue.listen((event) {});
+  //}
   // driverIsOnline() async {
   //   User currentTasker = _auth.currentUser!;
   //   String uid = currentTasker.uid;
@@ -354,4 +431,3 @@ class _HomeScreenState extends State<HomeScreen> {
   //     newMapController!.animateCamera(CameraUpdate.newLatLng(latLng));
   //   });
   // }
-}
