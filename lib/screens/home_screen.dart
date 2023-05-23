@@ -7,12 +7,14 @@ import 'package:flutter_geofire/flutter_geofire.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:homezetasker/provider/tasker_provider.dart';
+import 'package:homezetasker/push_notificaions/push_notification_system.dart';
 import 'package:homezetasker/resources/firestore_methods.dart';
 import 'package:homezetasker/resources/http_response.dart';
 import 'package:homezetasker/screens/chatroom.dart';
 import 'package:homezetasker/screens/chatrooms_list.dart';
 import 'package:homezetasker/screens/profile_screen.dart';
 import 'package:homezetasker/utils/constants.dart';
+import 'package:homezetasker/utils/global.dart';
 import 'package:homezetasker/utils/my_utils.dart';
 import 'package:homezetasker/widgets/small_widgets.dart';
 import 'package:provider/provider.dart';
@@ -40,7 +42,7 @@ class _HomeScreenState extends State<HomeScreen> {
     zoom: 14.4746,
   );
 
-  Position? taskerPosition;
+  
   var geoLocator = Geolocator();
   LocationPermission? _locationPermission;
 
@@ -70,12 +72,20 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // driverIsOnline() async {}
+  readCurrentTaskerInfo() async {
+    final auth = FirebaseAuth.instance;
+    User tasker = auth.currentUser!;
+    PushNotificationSystem pushNotificationSystem = PushNotificationSystem();
+    pushNotificationSystem.inittializeCloudMessaging(context);
+    pushNotificationSystem.generateTokens();
+  }
 
   @override
   void initState() {
     super.initState();
     // showData();
     checkPermission();
+    readCurrentTaskerInfo();
   }
 
   // String _username = '';
