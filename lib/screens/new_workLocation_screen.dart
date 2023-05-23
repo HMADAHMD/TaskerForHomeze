@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/src/widgets/framework.dart';
 import 'package:flutter/src/widgets/placeholder.dart';
@@ -8,10 +10,12 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:homezetasker/models/user_task_request.dart';
 import 'package:homezetasker/provider/tasker_provider.dart';
+import 'package:homezetasker/resources/asssitants_methods.dart';
 import 'package:homezetasker/utils/constants.dart';
 import 'package:homezetasker/utils/global.dart';
 import 'package:homezetasker/widgets/progress_dialogue.dart';
 import 'package:provider/provider.dart';
+import 'package:homezetasker/global/global.dart';
 
 class NewWorkLocationScreen extends StatefulWidget {
   UserTaskRequest? userTaskRequest;
@@ -40,13 +44,150 @@ class _NewWorkLocationScreenState extends State<NewWorkLocationScreen> {
   Set<Polyline> setOfPolyline = Set<Polyline>();
   List<LatLng> polyLinePositionCoordinates = [];
   PolylinePoints polylinePoints = PolylinePoints();
+  double mapPadding = 0;
+
+  BitmapDescriptor markerIcon = BitmapDescriptor.defaultMarker;
+  void addCustomMarker() {
+    ImageConfiguration imageConfig =
+        const ImageConfiguration(devicePixelRatio: 2.5);
+    //createLocalImageConfiguration(context, size: const Size(1, 1));
+    BitmapDescriptor.fromAssetImage(
+      imageConfig,
+      'assets/images/tasker.png',
+    ).then(
+      (icon) {
+        setState(() {
+          markerIcon = icon;
+        });
+      },
+    );
+  }
+
+  Future<void> drawPolyLineFromOriginToDestination(
+      LatLng originLatLng, LatLng destinationLatLng) async {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) => ProgressDialog(
+        message: "Please wait...",
+      ),
+    );
+
+    var directionDetailsInfo =
+        await AssistantMethods.obtainOriginToDestinationDirectionDetails(
+            originLatLng, destinationLatLng);
+
+    Navigator.pop(context);
+
+    print("These are points = ");
+    print(directionDetailsInfo!.e_points);
+
+    PolylinePoints pPoints = PolylinePoints();
+    List<PointLatLng> decodedPolyLinePointsResultList =
+        pPoints.decodePolyline(directionDetailsInfo!.e_points!);
+
+    polyLinePositionCoordinates.clear();
+
+    if (decodedPolyLinePointsResultList.isNotEmpty) {
+      decodedPolyLinePointsResultList.forEach((PointLatLng pointLatLng) {
+        polyLinePositionCoordinates
+            .add(LatLng(pointLatLng.latitude, pointLatLng.longitude));
+      });
+    }
+
+    setOfPolyline.clear();
+
+    setState(() {
+      Polyline polyline = Polyline(
+        color: orangeclr,
+        polylineId: const PolylineId("PolylineID"),
+        jointType: JointType.round,
+        points: polyLinePositionCoordinates,
+        startCap: Cap.roundCap,
+        endCap: Cap.roundCap,
+        geodesic: true,
+      );
+
+      setOfPolyline.add(polyline);
+    });
+
+    LatLngBounds boundsLatLng;
+    if (originLatLng.latitude > destinationLatLng.latitude &&
+        originLatLng.longitude > destinationLatLng.longitude) {
+      boundsLatLng =
+          LatLngBounds(southwest: destinationLatLng, northeast: originLatLng);
+    } else if (originLatLng.longitude > destinationLatLng.longitude) {
+      boundsLatLng = LatLngBounds(
+        southwest: LatLng(originLatLng.latitude, destinationLatLng.longitude),
+        northeast: LatLng(destinationLatLng.latitude, originLatLng.longitude),
+      );
+    } else if (originLatLng.latitude > destinationLatLng.latitude) {
+      boundsLatLng = LatLngBounds(
+        southwest: LatLng(destinationLatLng.latitude, originLatLng.longitude),
+        northeast: LatLng(originLatLng.latitude, destinationLatLng.longitude),
+      );
+    } else {
+      boundsLatLng =
+          LatLngBounds(southwest: originLatLng, northeast: destinationLatLng);
+    }
+
+    destinationMapController!
+        .animateCamera(CameraUpdate.newLatLngBounds(boundsLatLng, 65));
+
+    Marker originMarker = Marker(
+        markerId: const MarkerId("originID"),
+        position: originLatLng,
+        icon: markerIcon);
+
+    Marker destinationMarker = Marker(
+      markerId: const MarkerId("destinationID"),
+      position: destinationLatLng,
+      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
+    );
+
+    setState(() {
+      setOfMarkers.add(originMarker);
+      setOfMarkers.add(destinationMarker);
+    });
+
+    Circle originCircle = Circle(
+      circleId: const CircleId("originID"),
+      fillColor: Colors.green,
+      radius: 12,
+      strokeWidth: 3,
+      strokeColor: Colors.white,
+      center: originLatLng,
+    );
+
+    Circle destinationCircle = Circle(
+      circleId: const CircleId("destinationID"),
+      fillColor: Colors.red,
+      radius: 12,
+      strokeWidth: 3,
+      strokeColor: Colors.white,
+      center: destinationLatLng,
+    );
+
+    setState(() {
+      setOfCircle.add(originCircle);
+      setOfCircle.add(destinationCircle);
+    });
+  }
+
+  @override
+  void initState() {
+    // TODO: implement initState
+    super.initState();
+    saveAssignedTaskerDetails();
+  }
 
   @override
   Widget build(BuildContext context) {
+    addCustomMarker();
     return Scaffold(
       body: Stack(
         children: [
           GoogleMap(
+            padding: EdgeInsets.only(bottom: mapPadding),
             mapType: MapType.normal,
             myLocationEnabled: true,
             zoomControlsEnabled: true,
@@ -58,11 +199,17 @@ class _NewWorkLocationScreenState extends State<NewWorkLocationScreen> {
             onMapCreated: (GoogleMapController controller) {
               _mapController.complete(controller);
               destinationMapController = controller;
+              setState(() {
+                mapPadding = 350;
+              });
 
+              var taskerCurrentLatLng =
+                  LatLng(taskerPosition!.latitude, taskerPosition!.longitude);
 
-              var taskerCurrentLatLng = LatLng(taskerPosition!.latitude, taskerPosition!.longitude);
-
-              var workLocationLatLng = widget.userTaskRequest!.workLocationLatLng;
+              var workLocationLatLng =
+                  widget.userTaskRequest!.workLocationLatLng;
+              drawPolyLineFromOriginToDestination(
+                  taskerCurrentLatLng, workLocationLatLng!);
             },
           ),
           //User Interface
@@ -205,5 +352,43 @@ class _NewWorkLocationScreenState extends State<NewWorkLocationScreen> {
         ],
       ),
     );
+  }
+
+  saveAssignedTaskerDetails() {
+    DatabaseReference databaseReference = FirebaseDatabase.instance
+        .ref()
+        .child("tasksRequest")
+        .child(widget.userTaskRequest!.taskRequestId!);
+
+    Map taskerLocationDataMap = {
+      "latitude": taskerPosition!.latitude.toString(),
+      "longitude": taskerPosition!.longitude.toString(),
+    };
+    databaseReference.child("taskerLocation").set(taskerLocationDataMap);
+
+    databaseReference.child("status").set("accepted");
+    databaseReference.child("taskerId").set(onlinetaskerData.id);
+    databaseReference.child("taskerName").set(onlinetaskerData.name);
+    databaseReference.child("taskerPhone").set(onlinetaskerData.phone);
+    databaseReference.child("taskerCNIC").set(onlinetaskerData.cnic);
+    databaseReference
+        .child("taskerExperience")
+        .set(onlinetaskerData.experience);
+    databaseReference
+        .child("taskerProfession")
+        .set(onlinetaskerData.profession);
+    saveTaskRequestIdToTaskerHistory();
+  }
+
+  saveTaskRequestIdToTaskerHistory() {
+    final auth = FirebaseAuth.instance;
+    User tasker = auth.currentUser!;
+    DatabaseReference tripsHistoryRef = FirebaseDatabase.instance
+        .ref()
+        .child("tasker")
+        .child(tasker.uid)
+        .child("tasksHistory");
+
+    tripsHistoryRef.child(widget.userTaskRequest!.taskRequestId!).set(true);
   }
 }

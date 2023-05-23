@@ -8,17 +8,15 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:homezetasker/provider/tasker_provider.dart';
 import 'package:homezetasker/push_notificaions/push_notification_system.dart';
-import 'package:homezetasker/resources/firestore_methods.dart';
 import 'package:homezetasker/resources/http_response.dart';
-import 'package:homezetasker/screens/chatroom.dart';
 import 'package:homezetasker/screens/chatrooms_list.dart';
 import 'package:homezetasker/screens/profile_screen.dart';
 import 'package:homezetasker/utils/constants.dart';
-import 'package:homezetasker/utils/global.dart';
 import 'package:homezetasker/utils/my_utils.dart';
 import 'package:homezetasker/widgets/small_widgets.dart';
 import 'package:provider/provider.dart';
 import 'package:homezetasker/models/tasker.dart' as model;
+import 'package:homezetasker/global/global.dart';
 import 'dart:io';
 
 class HomeScreen extends StatefulWidget {
@@ -42,7 +40,6 @@ class _HomeScreenState extends State<HomeScreen> {
     zoom: 14.4746,
   );
 
-  
   var geoLocator = Geolocator();
   LocationPermission? _locationPermission;
 
@@ -75,6 +72,37 @@ class _HomeScreenState extends State<HomeScreen> {
   readCurrentTaskerInfo() async {
     final auth = FirebaseAuth.instance;
     User tasker = auth.currentUser!;
+
+    FirebaseDatabase.instance
+        .ref()
+        .child("tasker")
+        .child(tasker.uid)
+        .once()
+        .then((snap) {
+      if (snap.snapshot.value != null) {
+        onlinetaskerData.id = (snap.snapshot.value as Map)["id"];
+        onlinetaskerData.email = (snap.snapshot.value as Map)["email"];
+        onlinetaskerData.name = (snap.snapshot.value as Map)["name"];
+        onlinetaskerData.phone = (snap.snapshot.value as Map)["phone"];
+        onlinetaskerData.cnic =
+            (snap.snapshot.value as Map)["profession"]["cnic"];
+        onlinetaskerData.experience =
+            (snap.snapshot.value as Map)["profession"]["experience"];
+        onlinetaskerData.profession =
+            (snap.snapshot.value as Map)["profession"]["profession"];
+
+        print('Cars Details>>>>>');
+        print(onlinetaskerData.id);
+        print(onlinetaskerData.name);
+        print(onlinetaskerData.phone);
+        print(onlinetaskerData.cnic);
+        print(onlinetaskerData.experience);
+        print(onlinetaskerData.profession);
+      } else {
+        print('ERROR>>>>>>>>>>>');
+      }
+    });
+
     PushNotificationSystem pushNotificationSystem = PushNotificationSystem();
     pushNotificationSystem.inittializeCloudMessaging(context);
     pushNotificationSystem.generateTokens();
