@@ -55,6 +55,16 @@ class PushNotificationSystem {
 
         String workLocationAddress =
             (snapData.snapshot.value! as Map)['workLocationAddress'].toString();
+        String tasktitle =
+            (snapData.snapshot.value! as Map)['title'].toString();
+        String taskdetails =
+            (snapData.snapshot.value! as Map)['description'].toString();
+        String askedprice =
+            (snapData.snapshot.value! as Map)['askedPrice'].toString();
+        String bargianPrice =
+            (snapData.snapshot.value! as Map)['bargainPrice'].toString();
+        String finalPrice =
+            (snapData.snapshot.value! as Map)['finalPrice'].toString();
 
         String? mytaskRequestId = snapData.snapshot.key;
         UserTaskRequest userTaskRequest = UserTaskRequest();
@@ -64,6 +74,11 @@ class PushNotificationSystem {
         userTaskRequest.userPhone = userPhone;
         userTaskRequest.workLocationAddress = workLocationAddress;
         userTaskRequest.taskRequestId = mytaskRequestId;
+        userTaskRequest.title = tasktitle;
+        userTaskRequest.description = taskdetails;
+        userTaskRequest.price = askedprice;
+        userTaskRequest.bargainPrice = bargianPrice;
+        userTaskRequest.finalPrice = finalPrice;
 
         showDialog(
             context: context,

@@ -68,7 +68,7 @@ class _HomeScreenState extends State<HomeScreen> {
     print('Address: ' + readableAddress);
   }
 
-  // driverIsOnline() async {}
+
   readCurrentTaskerInfo() async {
     final auth = FirebaseAuth.instance;
     User tasker = auth.currentUser!;
@@ -362,6 +362,7 @@ class _HomeScreenState extends State<HomeScreen> {
     User tasker = auth.currentUser!;
     _streamSubscription =
         Geolocator.getPositionStream().listen((Position position) {
+      taskerPosition = position;
       Geofire.setLocation(
         tasker.uid,
         taskerPosition!.latitude,

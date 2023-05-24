@@ -1,10 +1,10 @@
 import 'dart:async';
-
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/src/widgets/framework.dart';
 import 'package:flutter/src/widgets/placeholder.dart';
+import 'package:flutter_geofire/flutter_geofire.dart';
 import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -12,7 +12,6 @@ import 'package:homezetasker/models/user_task_request.dart';
 import 'package:homezetasker/provider/tasker_provider.dart';
 import 'package:homezetasker/resources/asssitants_methods.dart';
 import 'package:homezetasker/utils/constants.dart';
-import 'package:homezetasker/utils/global.dart';
 import 'package:homezetasker/widgets/progress_dialogue.dart';
 import 'package:provider/provider.dart';
 import 'package:homezetasker/global/global.dart';
@@ -30,7 +29,6 @@ class _NewWorkLocationScreenState extends State<NewWorkLocationScreen> {
       Completer<GoogleMapController>();
 
   GoogleMapController? destinationMapController;
-  StreamSubscription<Position>? _streamSubscription;
 
   static const CameraPosition _kGooglePlex = CameraPosition(
     target: LatLng(32.33802241013048, 74.36075742817873),
@@ -45,22 +43,24 @@ class _NewWorkLocationScreenState extends State<NewWorkLocationScreen> {
   List<LatLng> polyLinePositionCoordinates = [];
   PolylinePoints polylinePoints = PolylinePoints();
   double mapPadding = 0;
+  String rideRequestStatus = "accepted";
+  String durationFromOriginToDestination = "";
+  bool isRequestDirectionDetails = false;
 
-  BitmapDescriptor markerIcon = BitmapDescriptor.defaultMarker;
-  void addCustomMarker() {
-    ImageConfiguration imageConfig =
-        const ImageConfiguration(devicePixelRatio: 2.5);
-    //createLocalImageConfiguration(context, size: const Size(1, 1));
-    BitmapDescriptor.fromAssetImage(
-      imageConfig,
-      'assets/images/tasker.png',
-    ).then(
-      (icon) {
-        setState(() {
-          markerIcon = icon;
-        });
-      },
-    );
+  BitmapDescriptor? iconAnimatedMarker;
+  var geoLocator = Geolocator();
+  Position? onlineTaskerCurrentPosition;
+
+  createTaskerIconMarker() {
+    if (iconAnimatedMarker == null) {
+      ImageConfiguration imageConfiguration =
+          createLocalImageConfiguration(context, size: const Size(3, 3));
+      BitmapDescriptor.fromAssetImage(
+              imageConfiguration, "assets/images/tasker.png")
+          .then((value) {
+        iconAnimatedMarker = value;
+      });
+    }
   }
 
   Future<void> drawPolyLineFromOriginToDestination(
@@ -134,9 +134,10 @@ class _NewWorkLocationScreenState extends State<NewWorkLocationScreen> {
         .animateCamera(CameraUpdate.newLatLngBounds(boundsLatLng, 65));
 
     Marker originMarker = Marker(
-        markerId: const MarkerId("originID"),
-        position: originLatLng,
-        icon: markerIcon);
+      markerId: const MarkerId("originID"),
+      position: originLatLng,
+      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueMagenta),
+    );
 
     Marker destinationMarker = Marker(
       markerId: const MarkerId("destinationID"),
@@ -173,6 +174,93 @@ class _NewWorkLocationScreenState extends State<NewWorkLocationScreen> {
     });
   }
 
+  getTaskerLiveLocationUpdate() {
+    LatLng oldLatLng = LatLng(0, 0);
+    final auth = FirebaseAuth.instance;
+    User tasker = auth.currentUser!;
+    streamSubscriptionTaskerLivePosition =
+        Geolocator.getPositionStream().listen((Position position) {
+      taskerPosition = position;
+      onlineTaskerCurrentPosition = position;
+
+      LatLng latlngTaskerPosition = LatLng(
+        onlineTaskerCurrentPosition!.latitude,
+        onlineTaskerCurrentPosition!.longitude,
+      );
+
+      Marker animatingMarker = Marker(
+        markerId: const MarkerId("AnimatedMarker"),
+        position: latlngTaskerPosition,
+        icon: iconAnimatedMarker!,
+        infoWindow: const InfoWindow(title: "This is your Position"),
+      );
+
+      setState(() {
+        CameraPosition cameraPosition =
+            CameraPosition(target: latlngTaskerPosition, zoom: 16);
+        destinationMapController!
+            .animateCamera(CameraUpdate.newCameraPosition(cameraPosition));
+
+        setOfMarkers.removeWhere(
+            (element) => element.markerId.value == "AnimatedMarker");
+        setOfMarkers.add(animatingMarker);
+      });
+
+      oldLatLng = latlngTaskerPosition;
+      updateDurationTimeAtRealTime();
+
+      //updating driver location at real time in Database
+      Map taskerLatLngDataMap = {
+        "latitude": onlineTaskerCurrentPosition!.latitude.toString(),
+        "longitude": onlineTaskerCurrentPosition!.longitude.toString(),
+      };
+      FirebaseDatabase.instance
+          .ref()
+          .child("tasksRequest")
+          .child(widget.userTaskRequest!.taskRequestId!)
+          .child("taskerLocation")
+          .set(taskerLatLngDataMap);
+    });
+  }
+
+  updateDurationTimeAtRealTime() async {
+    if (isRequestDirectionDetails == false) {
+      isRequestDirectionDetails = true;
+
+      if (onlineTaskerCurrentPosition == null) {
+        return;
+      }
+
+      var originLatLng = LatLng(
+        onlineTaskerCurrentPosition!.latitude,
+        onlineTaskerCurrentPosition!.longitude,
+      ); //Tasker current Location
+
+      var destinationLatLng;
+
+      if (rideRequestStatus == "accepted") {
+        destinationLatLng = widget.userTaskRequest!
+            .workLocationLatLng; //user PickUp Location / worklocation
+      } else //arrived
+      {
+        // destinationLatLng = widget
+        //     .userRideRequestDetails!.destinationLatLng; //user DropOff Location
+      }
+
+      var directionInformation =
+          await AssistantMethods.obtainOriginToDestinationDirectionDetails(
+              originLatLng, destinationLatLng);
+
+      if (directionInformation != null) {
+        setState(() {
+          durationFromOriginToDestination = directionInformation.duration_text!;
+        });
+      }
+
+      isRequestDirectionDetails = false;
+    }
+  }
+
   @override
   void initState() {
     // TODO: implement initState
@@ -182,7 +270,7 @@ class _NewWorkLocationScreenState extends State<NewWorkLocationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    addCustomMarker();
+    createTaskerIconMarker();
     return Scaffold(
       body: Stack(
         children: [
@@ -210,6 +298,7 @@ class _NewWorkLocationScreenState extends State<NewWorkLocationScreen> {
                   widget.userTaskRequest!.workLocationLatLng;
               drawPolyLineFromOriginToDestination(
                   taskerCurrentLatLng, workLocationLatLng!);
+              getTaskerLiveLocationUpdate();
             },
           ),
           //User Interface
@@ -238,14 +327,14 @@ class _NewWorkLocationScreenState extends State<NewWorkLocationScreen> {
                 child: Column(
                   children: [
                     //duration
-                    // const Text(
-                    //   "18 mins",
-                    //   style:  TextStyle(
-                    //     fontSize: 16,
-                    //     fontWeight: FontWeight.bold,
-                    //     color: Colors.lightGreenAccent,
-                    //   ),
-                    // ),
+                    Text(
+                      durationFromOriginToDestination,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: blueclr,
+                      ),
+                    ),
 
                     const SizedBox(
                       height: 18,
@@ -279,11 +368,49 @@ class _NewWorkLocationScreenState extends State<NewWorkLocationScreen> {
                             color: Colors.grey,
                           ),
                         ),
+                        Text('${widget.userTaskRequest!.userPhone}'),
                       ],
                     ),
-
                     const SizedBox(
-                      height: 18,
+                      height: 5,
+                    ),
+                    Container(
+                      decoration: BoxDecoration(
+                          color: grayclr,
+                          borderRadius: BorderRadius.circular(10)),
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Task: ${widget.userTaskRequest!.title!}',
+                              style: const TextStyle(
+                                  color: blueclr,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w400),
+                            ),
+                            Text(
+                              'Details: ${widget.userTaskRequest!.description!} dsbfjksbfkjsdjvklsdklvbsdlkbvkldbsnklbvjbsdvkjb kjdsbv',
+                              style: const TextStyle(
+                                  color: blueclr,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w400),
+                            ),
+                            Text(
+                              'Price: ${widget.userTaskRequest!.price!}',
+                              style: const TextStyle(
+                                  color: orangeclr,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(
+                      height: 5,
                     ),
 
                     //user worklocationAddress with icon
@@ -311,24 +438,74 @@ class _NewWorkLocationScreenState extends State<NewWorkLocationScreen> {
                       ],
                     ),
 
-                    const SizedBox(height: 20.0),
-
                     const SizedBox(
-                      height: 24,
+                      height: 5.0,
                     ),
 
                     const Divider(
                       thickness: 2,
-                      height: 2,
+                      height: 1,
                       color: blueclr,
                     ),
 
-                    const SizedBox(height: 10.0),
+                    const SizedBox(height: 5.0),
 
                     ElevatedButton.icon(
-                      onPressed: () {},
+                      onPressed: () {
+                        //[tasker has arrived at user PickUp Location] - Arrived Button
+                        if (rideRequestStatus == "accepted") {
+                          rideRequestStatus = "arrived";
+
+                          FirebaseDatabase.instance
+                              .ref()
+                              .child("tasksRequest")
+                              .child(widget.userTaskRequest!.taskRequestId!)
+                              .child("status")
+                              .set(rideRequestStatus);
+
+                          setState(() {
+                            buttonTitle = "Work Started"; //start the trip
+                            buttonColor = blueclr;
+                          });
+
+                          // showDialog(
+                          //     context: context,
+                          //     barrierDismissible: false,
+                          //     builder: (BuildContext c)=> ProgressDialog(
+                          //       message: "Loading...",
+                          //     ),
+                          // );
+
+                          // await drawPolyLineFromOriginToDestination(
+                          //     widget.userRideRequestDetails!.originLatLng!,
+                          //     widget.userRideRequestDetails!.destinationLatLng!
+                          // );
+
+                          // Navigator.pop(context);
+                        }
+                        //tasker has reached destination and pressed <<work Started>> - Work started
+                        else if (rideRequestStatus == "arrived") {
+                          rideRequestStatus = "workStarted";
+
+                          FirebaseDatabase.instance
+                              .ref()
+                              .child("tasksRequest")
+                              .child(widget.userTaskRequest!.taskRequestId!)
+                              .child("status")
+                              .set(rideRequestStatus);
+
+                          setState(() {
+                            buttonTitle = "Work Completed"; //end the trip
+                            buttonColor = Colors.deepPurpleAccent;
+                          });
+                        }
+                        //[tasker has completed the work] - Work Completed Button
+                        else if (rideRequestStatus == "workStarted") {
+                          workConpletedNow();
+                        }
+                      },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: orangeclr,
+                        backgroundColor: buttonColor,
                       ),
                       icon: const Icon(
                         Icons.handyman_rounded,
@@ -354,6 +531,49 @@ class _NewWorkLocationScreenState extends State<NewWorkLocationScreen> {
     );
   }
 
+  workConpletedNow() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) => ProgressDialog(
+        message: "Please wait...",
+      ),
+    );
+
+    //get the tripDirectionDetails = distance travelled
+    var currentTaskerPositionLatLng = LatLng(
+      onlineTaskerCurrentPosition!.latitude,
+      onlineTaskerCurrentPosition!.longitude,
+    );
+
+    // var tripDirectionDetails = await AssistantMethods.obtainOriginToDestinationDirectionDetails(
+    //     currentTaskerPositionLatLng,
+    //     widget.userTaskRequest!.originLatLng!
+    // );
+
+    //fare amount
+    //double totalFareAmount = AssistantMethods.calculateFareAmountFromOriginToDestination(tripDirectionDetails!);
+    double totalFareAmount = 20.0; //AssistantMethods.decidedFairAmount();
+
+    FirebaseDatabase.instance
+        .ref()
+        .child("tasksRequest")
+        .child(widget.userTaskRequest!.taskRequestId!)
+        .child("fareAmount")
+        .set(totalFareAmount.toString());
+
+    FirebaseDatabase.instance
+        .ref()
+        .child("tasksRequest")
+        .child(widget.userTaskRequest!.taskRequestId!)
+        .child("status")
+        .set("ended");
+
+    streamSubscriptionTaskerLivePosition!.cancel();
+
+    Navigator.pop(context);
+  }
+
   saveAssignedTaskerDetails() {
     DatabaseReference databaseReference = FirebaseDatabase.instance
         .ref()
@@ -365,7 +585,6 @@ class _NewWorkLocationScreenState extends State<NewWorkLocationScreen> {
       "longitude": taskerPosition!.longitude.toString(),
     };
     databaseReference.child("taskerLocation").set(taskerLocationDataMap);
-
     databaseReference.child("status").set("accepted");
     databaseReference.child("taskerId").set(onlinetaskerData.id);
     databaseReference.child("taskerName").set(onlinetaskerData.name);
