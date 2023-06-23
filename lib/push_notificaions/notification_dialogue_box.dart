@@ -1,6 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/src/widgets/framework.dart';
 import 'package:flutter/src/widgets/placeholder.dart';
 import 'package:fluttertoast/fluttertoast.dart';
@@ -14,7 +16,7 @@ import 'package:homezetasker/utils/constants.dart';
 import 'package:homezetasker/models/tasker.dart' as model;
 import 'package:provider/provider.dart';
 
-class NotificationDialogueBox extends StatefulWidget {
+class NotificationDialogueBox extends StatefulWidget { 
   UserTaskRequest? userTaskRequest;
   NotificationDialogueBox({super.key, this.userTaskRequest});
 
@@ -89,7 +91,7 @@ class _NotificationDialogueBoxState extends State<NotificationDialogueBox> {
                         fontWeight: FontWeight.w400),
                   ),
                   Text(
-                    'Details: ${widget.userTaskRequest!.description!} dsbfjksbfkjsdjvklsdklvbsdlkbvkldbsnklbvjbsdvkjb kjdsbv',
+                    'Details: ${widget.userTaskRequest!.description!}',
                     style: const TextStyle(
                         color: blueclr,
                         fontSize: 14,
@@ -158,8 +160,10 @@ class _NotificationDialogueBoxState extends State<NotificationDialogueBox> {
                         // audioPlayer = AssetsAudioPlayer();
 
                         //cancel the rideRequest
-
-                        Navigator.pop(context);
+                        cancelTaskRequest(context);
+                        Future.delayed(const Duration(milliseconds: 2000), () {
+                          SystemNavigator.pop();
+                        });
                       },
                       child: Text(
                         "Cancel".toUpperCase(),
@@ -229,6 +233,35 @@ class _NotificationDialogueBoxState extends State<NotificationDialogueBox> {
     );
   }
 
+  cancelTaskRequest(BuildContext context) {
+    final auth = FirebaseAuth.instance;
+    User tasker = auth.currentUser!;
+    FirebaseDatabase.instance
+        .ref()
+        .child("tasksRequest")
+        .child(widget.userTaskRequest!.taskRequestId!)
+        .remove()
+        .then((value) {
+      FirebaseDatabase.instance
+          .ref()
+          .child('tasker')
+          .child(tasker.uid)
+          .child("taskerStatus")
+          .set("idle");
+    }).then((value) {
+      FirebaseDatabase.instance
+          .ref()
+          .child("tasker")
+          .child(tasker.uid)
+          .child("tasksHistory")
+          .child(widget.userTaskRequest!.taskRequestId!)
+          .remove();
+    }).then((value) {
+      Fluttertoast.showToast(
+          msg: "Task Request has been deleted Suucessfully. Restart App Now.");
+    });
+  }
+
   acceptTaskRequest(BuildContext context) {
     final auth = FirebaseAuth.instance;
     User tasker = auth.currentUser!;
@@ -246,7 +279,8 @@ class _NotificationDialogueBoxState extends State<NotificationDialogueBox> {
       } else {
         Fluttertoast.showToast(msg: 'This task Request does not existss');
       }
-
+      String askedPrice = widget.userTaskRequest!.price!;
+      print(askedPrice);
       if (getTaskRequestId == widget.userTaskRequest!.taskRequestId) {
         // send driver to new ride screen
         FirebaseDatabase.instance
@@ -255,6 +289,13 @@ class _NotificationDialogueBoxState extends State<NotificationDialogueBox> {
             .child(tasker.uid)
             .child("taskerStatus")
             .set('accepted');
+
+        FirebaseDatabase.instance
+            .ref()
+            .child("tasksRequest")
+            .child(widget.userTaskRequest!.taskRequestId!)
+            .child("finalPrice")
+            .set(askedPrice);
 
         Navigator.push(
             context,
@@ -268,6 +309,7 @@ class _NotificationDialogueBoxState extends State<NotificationDialogueBox> {
     });
   }
 
+//check if user has accepted the bargain request of tasker
   checkValueChanges() {
     String finalPrice = '';
     DatabaseReference reference = FirebaseDatabase.instance
@@ -285,7 +327,8 @@ class _NotificationDialogueBoxState extends State<NotificationDialogueBox> {
             context,
             MaterialPageRoute(
                 builder: (context) => NewWorkLocationScreen(
-                    userTaskRequest: widget.userTaskRequest)));
+                    userTaskRequest: widget.userTaskRequest,
+                    finalPriceValue: finalPrice)));
         AssistantMethods.pauseLiveLocationUpdates();
         print('Value changed: $finalPrice');
       }
@@ -331,6 +374,82 @@ class _NotificationDialogueBoxState extends State<NotificationDialogueBox> {
     });
   }
 
+  sendNotificationToUser() async {
+    final auth = FirebaseAuth.instance;
+    User tasker = auth.currentUser!;
+    String gotTaskRequestId = "";
+    String userId = "";
+
+    FirebaseDatabase.instance
+        .ref()
+        .child('tasker')
+        .child(tasker.uid)
+        .child('taskerStatus')
+        .once()
+        .then((snap) {
+      if (snap.snapshot.value != null) {
+        gotTaskRequestId = snap.snapshot.value.toString();
+      } else {
+        Fluttertoast.showToast(msg: 'Please try again later');
+      }
+      if (gotTaskRequestId == widget.userTaskRequest!.taskRequestId) {
+        FirebaseDatabase.instance
+            .ref()
+            .child('tasksRequest')
+            .child(gotTaskRequestId)
+            .child('userId')
+            .once()
+            .then((snap) {
+          if (snap.snapshot.value != null) {
+            userId = snap.snapshot.value.toString();
+            Fluttertoast.showToast(msg: "Got user id");
+            print(" this is the user id: $userId");
+            FirebaseDatabase.instance
+                .ref()
+                .child("users")
+                .child(userId)
+                .child('token')
+                .once()
+                .then((snap) {
+              if (snap.snapshot.value != null) {
+                String deviceRegistrationToken = snap.snapshot.value.toString();
+                print(deviceRegistrationToken);
+                AssistantMethods.sendNotificationToTaskerNow(
+                    deviceRegistrationToken, gotTaskRequestId, context);
+                Fluttertoast.showToast(msg: "Sent Notification");
+              } else {
+                Fluttertoast.showToast(msg: "you are doing something wrong");
+              }
+            });
+          } else {
+            Fluttertoast.showToast(
+                msg: "Something wrong happened, Please try again");
+          }
+        });
+        // FirebaseDatabase.instance
+        //     .ref()
+        //     .child('users')
+        //     .child(userId)
+        //     .child('token')
+        //     .once()
+        //     .then((snap) {
+        //   if (snap.snapshot.value != null) {
+        //     String deviceToken = snap.snapshot.value.toString();
+        //     print(userId);
+        //     // AssistantMethods.sendNotificationToTaskerNow(
+        //     //     deviceToken, gotTaskRequestId, context);
+        //     print("this is the device token: $deviceToken");
+
+        //     Fluttertoast.showToast(msg: 'Notification Sent');
+        //   } else {
+        //     Fluttertoast.showToast(
+        //         msg: "Something very wrong happened, Please try again");
+        //   }
+        // });
+      }
+    });
+  }
+
   myAlertView() {
     showDialog(
       context: context,
@@ -370,6 +489,7 @@ class _NotificationDialogueBoxState extends State<NotificationDialogueBox> {
                   bargainPrice = _bargainPricecontroller.text;
                 });
                 bargainTaskPrice(context);
+                sendNotificationToUser();
                 Navigator.of(context).pop();
               },
               child: const Text(

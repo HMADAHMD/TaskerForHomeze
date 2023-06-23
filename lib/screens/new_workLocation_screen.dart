@@ -12,13 +12,16 @@ import 'package:homezetasker/models/user_task_request.dart';
 import 'package:homezetasker/provider/tasker_provider.dart';
 import 'package:homezetasker/resources/asssitants_methods.dart';
 import 'package:homezetasker/utils/constants.dart';
+import 'package:homezetasker/widgets/fair_amount_collection_dialogue.dart';
 import 'package:homezetasker/widgets/progress_dialogue.dart';
 import 'package:provider/provider.dart';
 import 'package:homezetasker/global/global.dart';
 
 class NewWorkLocationScreen extends StatefulWidget {
   UserTaskRequest? userTaskRequest;
-  NewWorkLocationScreen({super.key, this.userTaskRequest});
+  String? finalPriceValue;
+  NewWorkLocationScreen(
+      {super.key, this.userTaskRequest, this.finalPriceValue});
 
   @override
   State<NewWorkLocationScreen> createState() => _NewWorkLocationScreenState();
@@ -375,6 +378,7 @@ class _NewWorkLocationScreenState extends State<NewWorkLocationScreen> {
                       height: 5,
                     ),
                     Container(
+                      width: double.infinity,
                       decoration: BoxDecoration(
                           color: grayclr,
                           borderRadius: BorderRadius.circular(10)),
@@ -392,14 +396,14 @@ class _NewWorkLocationScreenState extends State<NewWorkLocationScreen> {
                                   fontWeight: FontWeight.w400),
                             ),
                             Text(
-                              'Details: ${widget.userTaskRequest!.description!} dsbfjksbfkjsdjvklsdklvbsdlkbvkldbsnklbvjbsdvkjb kjdsbv',
+                              'Details: ${widget.userTaskRequest!.description!}',
                               style: const TextStyle(
                                   color: blueclr,
                                   fontSize: 14,
                                   fontWeight: FontWeight.w400),
                             ),
                             Text(
-                              'Price: ${widget.userTaskRequest!.price!}',
+                              'Price: ${widget.userTaskRequest!.finalPrice!}',
                               style: const TextStyle(
                                   color: orangeclr,
                                   fontSize: 20,
@@ -462,6 +466,7 @@ class _NewWorkLocationScreenState extends State<NewWorkLocationScreen> {
                               .child(widget.userTaskRequest!.taskRequestId!)
                               .child("status")
                               .set(rideRequestStatus);
+                          print(widget.userTaskRequest!.finalPrice!);
 
                           setState(() {
                             buttonTitle = "Work Started"; //start the trip
@@ -546,15 +551,9 @@ class _NewWorkLocationScreenState extends State<NewWorkLocationScreen> {
       onlineTaskerCurrentPosition!.longitude,
     );
 
-    // var tripDirectionDetails = await AssistantMethods.obtainOriginToDestinationDirectionDetails(
-    //     currentTaskerPositionLatLng,
-    //     widget.userTaskRequest!.originLatLng!
-    // );
-
-    //fare amount
-    //double totalFareAmount = AssistantMethods.calculateFareAmountFromOriginToDestination(tripDirectionDetails!);
-    double totalFareAmount = 20.0; //AssistantMethods.decidedFairAmount();
-
+    String finalPValue = widget.finalPriceValue!;
+    double newfinalPriceValue = double.parse(finalPValue);
+    double totalFareAmount = newfinalPriceValue;
     FirebaseDatabase.instance
         .ref()
         .child("tasksRequest")
@@ -572,6 +571,44 @@ class _NewWorkLocationScreenState extends State<NewWorkLocationScreen> {
     streamSubscriptionTaskerLivePosition!.cancel();
 
     Navigator.pop(context);
+    //display fair amount in dialogue box
+    showDialog(
+        context: context,
+        builder: (BuildContext c) =>
+            FairAmountCollectionDialogue(totalFareAmount: totalFareAmount));
+    //save earnings to tasker total earnings
+    saveFareAmountToTaskerEarnings(totalFareAmount);
+  }
+
+  saveFareAmountToTaskerEarnings(double totalFareAmount) {
+    final auth = FirebaseAuth.instance;
+    User tasker = auth.currentUser!;
+    FirebaseDatabase.instance
+        .ref()
+        .child("tasker")
+        .child(tasker.uid)
+        .child("earnings")
+        .once()
+        .then((snap) {
+      if (snap.snapshot.value != null) {
+        double oldEarnings = double.parse(snap.snapshot.value.toString());
+        double taskerTotalEarnings = oldEarnings + totalFareAmount;
+
+        FirebaseDatabase.instance
+            .ref()
+            .child("tasker")
+            .child(tasker.uid)
+            .child("earnings")
+            .set(taskerTotalEarnings.toString());
+      } else {
+        FirebaseDatabase.instance
+            .ref()
+            .child("tasker")
+            .child(tasker.uid)
+            .child("earnings")
+            .set(totalFareAmount.toString());
+      }
+    });
   }
 
   saveAssignedTaskerDetails() {
